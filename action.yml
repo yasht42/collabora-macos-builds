@@ -113,6 +113,7 @@ runs:
         restore-keys: |
           ccache-macos-arm64-${{ inputs.distro_config }}-${{ inputs.build_type }}-
           ccache-macos-arm64-
+        save-always: true
 
     - name: Restore Engine External Tarballs Cache
       if: inputs.enable_cache == 'true'
@@ -122,6 +123,7 @@ runs:
         key: collabora-tarballs-${{ hashFiles('collabora-online/engine/download.lst') }}
         restore-keys: |
           collabora-tarballs-
+        save-always: true
 
     - name: Build Collabora Office Engine (core)
       shell: bash

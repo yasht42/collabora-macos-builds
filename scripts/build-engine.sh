@@ -41,6 +41,7 @@ echo "==> Using PYTHON=${PYTHON}"
 
 # Configure ccache if available
 if command -v ccache >/dev/null 2>&1; then
+  export CCACHE_DIR="${CCACHE_DIR:-${HOME}/Library/Caches/ccache}"
   export CCACHE_CPP2=yes
   export CCACHE_SLOPPINESS=pch_defines,time_macros
   ccache -M "${CCACHE_MAXSIZE:-10G}" || true
@@ -118,7 +119,7 @@ echo "==> Fetching external tarballs..."
 "${GNUMAKE}" fetch
 
 echo "==> Building Collabora Office Engine (${PARALLEL_JOBS} parallel jobs)..."
-"${GNUMAKE}" -j"${PARALLEL_JOBS}" build-nocheck
+"${GNUMAKE}" -j"${PARALLEL_JOBS}"
 
 if command -v ccache >/dev/null 2>&1; then
   echo "==> ccache statistics after build:"
