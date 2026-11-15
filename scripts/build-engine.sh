@@ -39,10 +39,10 @@ else
   LANG_FLAG="--with-lang=${LANGUAGES}"
 fi
 
-# Determine build type flags
+# Determine build type flags (release is the default when neither debug nor dbgutil is enabled)
 case "${BUILD_TYPE}" in
   release)
-    BUILD_TYPE_FLAGS=$'--enable-release-build\n--enable-symbols'
+    BUILD_TYPE_FLAGS=""
     ;;
   debug)
     BUILD_TYPE_FLAGS=$'--enable-debug\n--enable-symbols'
@@ -80,7 +80,7 @@ sed \
 # Replace multiline __BUILD_TYPE_FLAGS__
 python3 - "${ENGINE_DIR}/autogen.input.tmp" "${ENGINE_DIR}/autogen.input" "${BUILD_TYPE_FLAGS}" <<'EOF'
 import sys
-src, dst, flags = sys.argv[1], sys.argv[2], sys.argv[3]
+src, dst, flags = sys.argv[1], sys.argv[2], sys.argv[3].strip()
 with open(src, "r", encoding="utf-8") as f:
     content = f.read()
 content = content.replace("__BUILD_TYPE_FLAGS__", flags)
