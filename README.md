@@ -33,18 +33,23 @@ This repository provides:
 
 ## Triggering a Build & Release
 
-### 1. Automatic Tag Release
-Push any Git tag starting with `v` (for example, `v25.04.1`):
+### 1. Automatic Upstream Tag Polling (`schedule`)
+Every 6 hours (`0 */6 * * *`), a lightweight `check-upstream` job runs on `ubuntu-latest` and queries `https://gerrit.collaboraoffice.com/online` for the latest stable `cp-*` release tag (`25.04` and newer, matching `^cp-(2[5-9]|[3-9][0-9])\.[0-9]+\.[0-9]+-[0-9]+$`).
+- If a GitHub Release for that tag already exists in this repository, the workflow exits in seconds without spinning up a macOS runner.
+- If a new upstream tag is detected, it automatically triggers the `macos-15` (`arm64`) build job against that exact upstream tag and publishes a matching GitHub Release.
+
+### 2. Automatic Tag Push (`v*` or `cp-*`)
+Push any Git tag starting with `v` or `cp-` (for example, `cp-25.04.2-1` or `v25.04.1`):
 ```bash
-git tag v25.04.1
-git push origin v25.04.1
+git tag cp-25.04.2-1
+git push origin cp-25.04.2-1
 ```
-The workflow will automatically build Collabora Office for macOS (`arm64`) and publish a GitHub Release attached to that tag containing:
+The workflow will automatically build Collabora Office for macOS (`arm64`) (checking out the matching `cp-*` tag upstream when pushed with a `cp-*` tag) and publish a GitHub Release attached to that tag containing:
 - `CollaboraOffice-<version>-macOS-arm64.dmg`
 - `CollaboraOffice-<version>-macOS-arm64.app.zip`
 - `SHA256SUMS.txt`
 
-### 2. Manual Trigger (`workflow_dispatch`)
+### 3. Manual Trigger (`workflow_dispatch`)
 Navigate to **Actions → Build & Release Collabora Office macOS (arm64) → Run workflow** and customize:
 - **`ref`**: Branch, tag, or commit in `https://gerrit.collaboraoffice.com/online` (default: `main`)
 - **`distro_config`**: Engine distribution config under `engine/distro-configs/` (default: `CPMacOS-LOKit`)

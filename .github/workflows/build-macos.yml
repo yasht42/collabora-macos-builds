@@ -1,9 +1,13 @@
 name: Build & Release Collabora Office macOS (arm64)
 
 on:
+  schedule:
+    # Poll upstream Collabora repository every 6 hours for new cp-* release tags
+    - cron: '0 */6 * * *'
   push:
     tags:
       - 'v*'
+      - 'cp-*'
   workflow_dispatch:
     inputs:
       ref:
@@ -55,8 +59,61 @@ permissions:
   contents: write
 
 jobs:
+  check-upstream:
+    name: Check Upstream for New Release Tags
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      upstream_tag: ${{ steps.check.outputs.upstream_tag }}
+    steps:
+      - name: Determine if Build is Required
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_REPO: 'https://gerrit.collaboraoffice.com/online'
+        run: |
+          set -euo pipefail
+
+          # Manual dispatch or tag push always builds immediately
+          if [[ "${{ github.event_name }}" != "schedule" ]]; then
+            echo "Triggered by ${{ github.event_name }}; proceeding to build."
+            echo "should_build=true" >> "${GITHUB_OUTPUT}"
+            echo "upstream_tag=" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "==> Fetching upstream tags from ${UPSTREAM_REPO}..."
+          LATEST_TAG=$(git ls-remote --tags --refs "${UPSTREAM_REPO}" \
+            | awk '{sub("refs/tags/", "", $2); print $2}' \
+            | grep -E '^cp-(2[5-9]|[3-9][0-9])\.[0-9]+\.[0-9]+-[0-9]+$' \
+            | sort -V \
+            | tail -n 1 || true)
+
+          if [[ -z "${LATEST_TAG}" ]]; then
+            echo "No matching upstream cp-* tags (25.04+) found."
+            echo "should_build=false" >> "${GITHUB_OUTPUT}"
+            echo "upstream_tag=" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "Latest upstream tag detected: ${LATEST_TAG}"
+
+          # Check if a GitHub Release for this tag already exists in this repository
+          if gh release view "${LATEST_TAG}" --repo "${{ github.repository }}" >/dev/null 2>&1 \
+             || gh release view "v${LATEST_TAG#cp-}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release for ${LATEST_TAG} already exists in ${{ github.repository }}. Skipping build."
+            echo "should_build=false" >> "${GITHUB_OUTPUT}"
+            echo "upstream_tag=${LATEST_TAG}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "New upstream tag ${LATEST_TAG} has not been built yet! Triggering macOS build."
+            echo "should_build=true" >> "${GITHUB_OUTPUT}"
+            echo "upstream_tag=${LATEST_TAG}" >> "${GITHUB_OUTPUT}"
+          fi
+
   build-macos-arm64:
     name: Build Collabora Office (macOS arm64)
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'true'
     runs-on: macos-15
     timeout-minutes: 360
 
@@ -64,28 +121,41 @@ jobs:
       - name: Checkout Builder Repository
         uses: actions/checkout@v4
 
-      - name: Determine Version & Release Tag
+      - name: Determine Version, Source Ref & Release Tag
         id: meta
         shell: bash
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+          if [[ "${{ github.event_name }}" == "schedule" && -n "${{ needs.check-upstream.outputs.upstream_tag }}" ]]; then
+            SOURCE_REF="${{ needs.check-upstream.outputs.upstream_tag }}"
+            TAG="${SOURCE_REF}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
             TAG="${{ github.ref_name }}"
+            if [[ "${TAG}" == cp-* ]]; then
+              SOURCE_REF="${TAG}"
+            else
+              SOURCE_REF="${{ inputs.ref || 'main' }}"
+            fi
           elif [[ -n "${{ inputs.release_tag }}" ]]; then
             TAG="${{ inputs.release_tag }}"
+            SOURCE_REF="${{ inputs.ref || 'main' }}"
           else
             TAG="v$(date -u +'%Y.%m.%d')-build.${{ github.run_number }}"
+            SOURCE_REF="${{ inputs.ref || 'main' }}"
           fi
+
           VERSION="${TAG#v}"
+          VERSION="${VERSION#cp-}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "Resolved release tag: ${TAG} (version: ${VERSION})"
+          echo "source_ref=${SOURCE_REF}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved release tag: ${TAG} (version: ${VERSION}, source_ref: ${SOURCE_REF})"
 
       - name: Build and Package Collabora Office for macOS
         id: build
         uses: ./
         with:
           repository_url: 'https://gerrit.collaboraoffice.com/online'
-          ref: ${{ inputs.ref || 'main' }}
+          ref: ${{ steps.meta.outputs.source_ref }}
           distro_config: ${{ inputs.distro_config || 'CPMacOS-LOKit' }}
           vendor: 'Collabora'
           build_type: ${{ inputs.build_type || 'release' }}
@@ -112,7 +182,7 @@ jobs:
           retention-days: 14
 
       - name: Create GitHub Release
-        if: github.ref_type == 'tag' || inputs.create_release == true
+        if: github.event_name == 'schedule' || github.ref_type == 'tag' || inputs.create_release == true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
@@ -126,7 +196,7 @@ jobs:
 
             ### Build Metadata
             - **Source Repository:** `https://gerrit.collaboraoffice.com/online` (`engine/`)
-            - **Source Ref:** `${{ inputs.ref || 'main' }}`
+            - **Source Ref:** `${{ steps.meta.outputs.source_ref }}`
             - **Distro Config:** `${{ inputs.distro_config || 'CPMacOS-LOKit' }}`
             - **Build Type:** `${{ inputs.build_type || 'release' }}`
             - **Languages:** `${{ inputs.languages || 'without-lang' }}`
