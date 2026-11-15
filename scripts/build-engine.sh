@@ -8,7 +8,10 @@ SOURCE_DIR="${SOURCE_DIR:-${REPO_ROOT}/collabora-online}"
 ENGINE_DIR="${ENGINE_DIR:-${SOURCE_DIR}/engine}"
 DISTRO_CONFIG="${DISTRO_CONFIG:-CPMacOS-LOKit}"
 VENDOR="${VENDOR:-Collabora}"
-BUILD_TYPE="${BUILD_TYPE:-release}"
+COLLABORA_BUILD_TYPE="${COLLABORA_BUILD_TYPE:-${BUILD_TYPE:-release}}"
+# Unset BUILD_TYPE from environment because engine/configure.ac checks `test -n "$BUILD_TYPE"`
+# to detect if config_host.mk was accidentally sourced into the shell.
+unset BUILD_TYPE
 LANGUAGES="${LANGUAGES:-without-lang}"
 PACKAGE_FORMAT="${PACKAGE_FORMAT:-}"
 PARALLEL_JOBS="${PARALLEL_JOBS:-$(sysctl -n hw.logicalcpu)}"
@@ -40,7 +43,7 @@ else
 fi
 
 # Determine build type flags (release is the default when neither debug nor dbgutil is enabled)
-case "${BUILD_TYPE}" in
+case "${COLLABORA_BUILD_TYPE}" in
   release)
     BUILD_TYPE_FLAGS=""
     ;;
@@ -51,7 +54,7 @@ case "${BUILD_TYPE}" in
     BUILD_TYPE_FLAGS=$'--enable-dbgutil\n--enable-symbols'
     ;;
   *)
-    echo "Error: Unsupported BUILD_TYPE '${BUILD_TYPE}' (expected release, debug, or dbgutil)" >&2
+    echo "Error: Unsupported COLLABORA_BUILD_TYPE '${COLLABORA_BUILD_TYPE}' (expected release, debug, or dbgutil)" >&2
     exit 1
     ;;
 esac

@@ -129,7 +129,7 @@ runs:
         SOURCE_DIR: ${{ github.workspace }}/collabora-online
         DISTRO_CONFIG: ${{ inputs.distro_config }}
         VENDOR: ${{ inputs.vendor }}
-        BUILD_TYPE: ${{ inputs.build_type }}
+        COLLABORA_BUILD_TYPE: ${{ inputs.build_type }}
         LANGUAGES: ${{ inputs.languages }}
       run: "${{ github.action_path }}/scripts/build-engine.sh"
 
@@ -139,7 +139,7 @@ runs:
       env:
         SOURCE_DIR: ${{ github.workspace }}/collabora-online
         VENDOR: ${{ inputs.vendor }}
-        BUILD_TYPE: ${{ inputs.build_type }}
+        COLLABORA_BUILD_TYPE: ${{ inputs.build_type }}
       run: "${{ github.action_path }}/scripts/build-macos-wrapper.sh"
 
     - name: Sign and Package macOS Artifacts (.dmg & .app.zip)

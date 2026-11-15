@@ -8,7 +8,8 @@ SOURCE_DIR="${SOURCE_DIR:-${REPO_ROOT}/collabora-online}"
 APP_NAME="${APP_NAME:-Collabora Office}"
 APP_PACKAGE_NAME="${APP_PACKAGE_NAME:-com.collabora.office}"
 VENDOR="${VENDOR:-Collabora}"
-BUILD_TYPE="${BUILD_TYPE:-release}"
+COLLABORA_BUILD_TYPE="${COLLABORA_BUILD_TYPE:-${BUILD_TYPE:-release}}"
+unset BUILD_TYPE
 PARALLEL_JOBS="${PARALLEL_JOBS:-$(sysctl -n hw.logicalcpu)}"
 
 BREW_PREFIX="$(brew --prefix)"
@@ -29,7 +30,7 @@ CONFIGURE_FLAGS=(
   --with-vendor="${VENDOR}"
 )
 
-if [[ "${BUILD_TYPE}" == "debug" || "${BUILD_TYPE}" == "dbgutil" ]]; then
+if [[ "${COLLABORA_BUILD_TYPE}" == "debug" || "${COLLABORA_BUILD_TYPE}" == "dbgutil" ]]; then
   CONFIGURE_FLAGS+=(--enable-debug)
 fi
 
@@ -40,7 +41,7 @@ echo "==> Building browser/ web frontend (JavaScript/CSS bundle) and common targ
 "${GNUMAKE}" -j"${PARALLEL_JOBS}"
 
 XCODE_CONFIG="Release"
-if [[ "${BUILD_TYPE}" == "debug" || "${BUILD_TYPE}" == "dbgutil" ]]; then
+if [[ "${COLLABORA_BUILD_TYPE}" == "debug" || "${COLLABORA_BUILD_TYPE}" == "dbgutil" ]]; then
   XCODE_CONFIG="Debug"
 fi
 
