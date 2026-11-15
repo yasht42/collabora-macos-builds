@@ -26,6 +26,18 @@ BREW_PREFIX="$(brew --prefix)"
 export PATH="${BREW_PREFIX}/opt/make/libexec/gnubin:${BREW_PREFIX}/bin:${PATH}"
 export PKG_CONFIG="${BREW_PREFIX}/bin/pkg-config"
 export GNUMAKE="${BREW_PREFIX}/bin/gmake"
+export PYTHON="${BREW_PREFIX}/bin/python3"
+
+# Ensure PYTHON can execute Homebrew's meson script directly
+if [[ -f "${BREW_PREFIX}/bin/meson" ]]; then
+  if ! "${PYTHON}" "${BREW_PREFIX}/bin/meson" --version >/dev/null 2>&1; then
+    MESON_SHEBANG_PY="$(head -n 1 "${BREW_PREFIX}/bin/meson" | sed -e 's/^#!//' -e 's/[[:space:]]*$//')"
+    if [[ -x "${MESON_SHEBANG_PY}" ]] && "${MESON_SHEBANG_PY}" "${BREW_PREFIX}/bin/meson" --version >/dev/null 2>&1; then
+      export PYTHON="${MESON_SHEBANG_PY}"
+    fi
+  fi
+fi
+echo "==> Using PYTHON=${PYTHON}"
 
 # Configure ccache if available
 if command -v ccache >/dev/null 2>&1; then
@@ -75,6 +87,7 @@ TEMPLATE_FILE="${REPO_ROOT}/config/autogen.input.in"
 sed \
   -e "s|PKG_CONFIG=/opt/homebrew/bin/pkg-config|PKG_CONFIG=${PKG_CONFIG}|g" \
   -e "s|GNUMAKE=/opt/homebrew/bin/gmake|GNUMAKE=${GNUMAKE}|g" \
+  -e "s|PYTHON=/opt/homebrew/bin/python3|PYTHON=${PYTHON}|g" \
   -e "s|__DISTRO_CONFIG__|${DISTRO_CONFIG}|g" \
   -e "s|__VENDOR__|${VENDOR}|g" \
   -e "s|__LANG_FLAG__|${LANG_FLAG}|g" \

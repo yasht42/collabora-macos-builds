@@ -16,6 +16,7 @@ BREW_PREFIX="$(brew --prefix)"
 export PATH="${BREW_PREFIX}/opt/make/libexec/gnubin:${BREW_PREFIX}/opt/libtool/libexec/gnubin:${BREW_PREFIX}/bin:${PATH}"
 export PKG_CONFIG="${BREW_PREFIX}/bin/pkg-config"
 export GNUMAKE="${BREW_PREFIX}/bin/gmake"
+export PYTHON="${BREW_PREFIX}/bin/python3"
 
 cd "${SOURCE_DIR}"
 

@@ -3,6 +3,7 @@
 
 PKG_CONFIG=/opt/homebrew/bin/pkg-config
 GNUMAKE=/opt/homebrew/bin/gmake
+PYTHON=/opt/homebrew/bin/python3
 
 # Target Collabora macOS distribution configuration
 --with-distro=__DISTRO_CONFIG__
