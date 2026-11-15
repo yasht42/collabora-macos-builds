@@ -1,0 +1,10 @@
+# Local clone and build outputs
+/collabora-online/
+/dist/
+*.dmg
+*.app.zip
+*.p12
+*.keychain-db
+
+# macOS
+.DS_Store

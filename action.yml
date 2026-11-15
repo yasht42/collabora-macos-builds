@@ -1,0 +1,163 @@
+name: 'Build Collabora Office for macOS'
+description: 'Clones, builds, signs, and packages Collabora Office Desktop / Engine (core) on Apple Silicon macOS (arm64).'
+author: 'Collabora Office macOS Builder'
+
+inputs:
+  repository_url:
+    description: 'Git URL of the Collabora Online monorepo containing the engine/ directory'
+    required: false
+    default: 'https://gerrit.collaboraoffice.com/online'
+  ref:
+    description: 'Branch, tag, or commit SHA to check out in the Collabora monorepo'
+    required: false
+    default: 'main'
+  distro_config:
+    description: 'Distro config name under engine/distro-configs/ (e.g. CPMacOS-LOKit, LibreOfficeMacOSX)'
+    required: false
+    default: 'CPMacOS-LOKit'
+  vendor:
+    description: 'Vendor string embedded into the application'
+    required: false
+    default: 'Collabora'
+  build_type:
+    description: 'Engine build mode: release, debug, or dbgutil'
+    required: false
+    default: 'release'
+  languages:
+    description: 'Space-separated language codes (e.g. "en-US de fr es") or "without-lang"'
+    required: false
+    default: 'without-lang'
+  build_macos_wrapper:
+    description: 'Whether to compile the top-level web-based macOS desktop app (browser/ JS frontend + macos/ CODA wrapper) after building engine/'
+    required: false
+    default: 'true'
+  version_tag:
+    description: 'Version string appended to output package filenames'
+    required: false
+    default: 'latest'
+  enable_cache:
+    description: 'Whether to cache ccache and external tarballs using actions/cache'
+    required: false
+    default: 'true'
+  macos_certificate_p12:
+    description: 'Optional Base64-encoded Apple Developer ID Application .p12 certificate'
+    required: false
+    default: ''
+  macos_certificate_password:
+    description: 'Optional password for the .p12 certificate'
+    required: false
+    default: ''
+  apple_signing_identity:
+    description: 'Optional explicit Developer ID Application signing identity name'
+    required: false
+    default: ''
+  apple_id:
+    description: 'Optional Apple ID email for notarization'
+    required: false
+    default: ''
+  apple_team_id:
+    description: 'Optional Apple Developer Team ID for notarization'
+    required: false
+    default: ''
+  apple_app_specific_password:
+    description: 'Optional app-specific password for notarization'
+    required: false
+    default: ''
+
+outputs:
+  dist_dir:
+    description: 'Path to the directory containing the built .dmg, .app.zip, and SHA256SUMS.txt'
+    value: ${{ github.workspace }}/dist
+  dmg_path:
+    description: 'Path to the generated .dmg installer'
+    value: ${{ steps.package.outputs.dmg_path }}
+  zip_path:
+    description: 'Path to the generated .app.zip archive'
+    value: ${{ steps.package.outputs.zip_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install macOS Build Dependencies
+      shell: bash
+      run: "${{ github.action_path }}/scripts/install-deps.sh"
+
+    - name: Set up Node.js 20.x (when building macOS wrapper)
+      if: inputs.build_macos_wrapper == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Clone Collabora Monorepo
+      shell: bash
+      env:
+        REPO_URL: ${{ inputs.repository_url }}
+        REPO_REF: ${{ inputs.ref }}
+      run: |
+        set -euo pipefail
+        if [[ ! -d "${{ github.workspace }}/collabora-online/.git" ]]; then
+          echo "==> Cloning ${REPO_URL} (ref: ${REPO_REF})..."
+          git clone --depth 1 --branch "${REPO_REF}" "${REPO_URL}" "${{ github.workspace }}/collabora-online" || {
+            git clone "${REPO_URL}" "${{ github.workspace }}/collabora-online"
+            git -C "${{ github.workspace }}/collabora-online" checkout "${REPO_REF}"
+          }
+        fi
+        git -C "${{ github.workspace }}/collabora-online" log -1 --oneline
+
+    - name: Restore ccache
+      if: inputs.enable_cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/Library/Caches/ccache
+        key: ccache-macos-arm64-${{ inputs.distro_config }}-${{ inputs.build_type }}-${{ github.run_id }}
+        restore-keys: |
+          ccache-macos-arm64-${{ inputs.distro_config }}-${{ inputs.build_type }}-
+          ccache-macos-arm64-
+
+    - name: Restore Engine External Tarballs Cache
+      if: inputs.enable_cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/collabora-online/engine/external/tarballs
+        key: collabora-tarballs-${{ hashFiles('collabora-online/engine/download.lst') }}
+        restore-keys: |
+          collabora-tarballs-
+
+    - name: Build Collabora Office Engine (core)
+      shell: bash
+      env:
+        SOURCE_DIR: ${{ github.workspace }}/collabora-online
+        DISTRO_CONFIG: ${{ inputs.distro_config }}
+        VENDOR: ${{ inputs.vendor }}
+        BUILD_TYPE: ${{ inputs.build_type }}
+        LANGUAGES: ${{ inputs.languages }}
+      run: "${{ github.action_path }}/scripts/build-engine.sh"
+
+    - name: Build macOS Desktop Wrapper (web-based frontend + CODA)
+      if: inputs.build_macos_wrapper == 'true'
+      shell: bash
+      env:
+        SOURCE_DIR: ${{ github.workspace }}/collabora-online
+        VENDOR: ${{ inputs.vendor }}
+        BUILD_TYPE: ${{ inputs.build_type }}
+      run: "${{ github.action_path }}/scripts/build-macos-wrapper.sh"
+
+    - name: Sign and Package macOS Artifacts (.dmg & .app.zip)
+      id: package
+      shell: bash
+      env:
+        SOURCE_DIR: ${{ github.workspace }}/collabora-online
+        OUTPUT_DIR: ${{ github.workspace }}/dist
+        VERSION_TAG: ${{ inputs.version_tag }}
+        ARCH: arm64
+        BUILD_MACOS_WRAPPER: ${{ inputs.build_macos_wrapper }}
+        MACOS_CERTIFICATE_P12: ${{ inputs.macos_certificate_p12 }}
+        MACOS_CERTIFICATE_PASSWORD: ${{ inputs.macos_certificate_password }}
+        APPLE_SIGNING_IDENTITY: ${{ inputs.apple_signing_identity }}
+        APPLE_ID: ${{ inputs.apple_id }}
+        APPLE_TEAM_ID: ${{ inputs.apple_team_id }}
+        APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.apple_app_specific_password }}
+      run: |
+        "${{ github.action_path }}/scripts/package-macos.sh"
+        echo "dmg_path=${{ github.workspace }}/dist/CollaboraOffice-${VERSION_TAG}-macOS-arm64.dmg" >> "${GITHUB_OUTPUT}"
+        echo "zip_path=${{ github.workspace }}/dist/CollaboraOffice-${VERSION_TAG}-macOS-arm64.app.zip" >> "${GITHUB_OUTPUT}"

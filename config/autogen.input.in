@@ -1,0 +1,25 @@
+# Default Collabora Office Engine (core) configuration for macOS (Apple Silicon / arm64)
+# Used by scripts/build-engine.sh to generate engine/autogen.input
+
+PKG_CONFIG=/opt/homebrew/bin/pkg-config
+GNUMAKE=/opt/homebrew/bin/gmake
+
+# Target Collabora macOS distribution configuration
+--with-distro=__DISTRO_CONFIG__
+--with-vendor=__VENDOR__
+
+# Disable mergelibs as required by CPMacOS-LOKit
+--disable-mergelibs
+
+# Avoid treating compiler warnings from newer Xcode toolchains as fatal in CI
+--disable-werror
+
+# Skip unit tests during packaging builds to stay within GitHub Actions runner limits
+--without-junit
+--without-java
+
+# Localization settings
+__LANG_FLAG__
+
+# Build mode flags (release vs debug)
+__BUILD_TYPE_FLAGS__
