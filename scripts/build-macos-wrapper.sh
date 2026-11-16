@@ -23,12 +23,31 @@ cd "${SOURCE_DIR}"
 echo "==> Running top-level ./autogen.sh in ${SOURCE_DIR}..."
 ./autogen.sh
 
+# Locate the built engine .app bundle so we can pass --with-lo-path=<...>.app
+# On macOS, engine/ builds into engine/instdir/<AppName>.app/Contents/Frameworks/libmergedlo.dylib.
+# Top-level configure appends /Contents/Frameworks to --with-lo-path, so when --with-lo-path is omitted
+# on release tags (which default to $(pwd)/engine/instdir), it looks in engine/instdir/Contents/Frameworks
+# instead of engine/instdir/<AppName>.app/Contents/Frameworks.
+ENGINE_APP_BUNDLE="$(find "${SOURCE_DIR}/engine/instdir" -maxdepth 2 -name "*.app" -type d | head -n 1 || true)"
+if [[ -z "${ENGINE_APP_BUNDLE}" ]]; then
+  echo "Error: No .app bundle found under ${SOURCE_DIR}/engine/instdir" >&2
+  exit 1
+fi
+echo "==> Detected built engine .app bundle: ${ENGINE_APP_BUNDLE}"
+
+# Also create convenience symlinks in engine/instdir/Contents/... -> <AppName>.app/Contents/...
+# in case any Makefile or Xcode build phase hardcodes $(abs_top_builddir)/engine/instdir/Contents
+if [[ -d "${ENGINE_APP_BUNDLE}/Contents" && ! -e "${SOURCE_DIR}/engine/instdir/Contents" ]]; then
+  ln -s "$(basename "${ENGINE_APP_BUNDLE}")/Contents" "${SOURCE_DIR}/engine/instdir/Contents"
+fi
+
 CONFIGURE_FLAGS=(
   --enable-macosapp
   --enable-experimental
   --with-app-name="${APP_NAME}"
   --with-app-package-name="${APP_PACKAGE_NAME}"
   --with-vendor="${VENDOR}"
+  --with-lo-path="${ENGINE_APP_BUNDLE}"
 )
 
 if [[ "${COLLABORA_BUILD_TYPE}" == "debug" || "${COLLABORA_BUILD_TYPE}" == "dbgutil" ]]; then
